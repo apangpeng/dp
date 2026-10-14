@@ -1,8 +1,8 @@
 # 网络监控（netmon）· 内置下行带宽消耗器
 
-![GitHub release](https://img.shields.io/github/v/release/apangpeng/dp?color=blue&label=Release)
-![GitHub stars](https://img.shields.io/github/stars/apangpeng/dp?color=green&label=Stars)
-![GitHub last commit](https://img.shields.io/github/last-commit/apangpeng/dp?color=orange&label=最近更新)
+![GitHub release](https://img.shields.io/github/v/release/apangpeng/fnnet-monitor?color=blue&label=Release)
+![GitHub stars](https://img.shields.io/github/stars/apangpeng/fnnet-monitor?color=green&label=Stars)
+![GitHub last commit](https://img.shields.io/github/last-commit/apangpeng/fnnet-monitor?color=orange&label=最近更新)
 
 飞牛 fnOS 网络监控面板，专为 PCDN 业务场景优化，并内置「下行带宽消耗器」（PCDN 业务版块）。
 
@@ -28,7 +28,7 @@
 
 ## 安装
 
-1. 下载最新版 fpk：**[Releases 页面](https://github.com/apangpeng/dp/releases)**（推荐）或仓库内 `网络监控-<版本>-内置下行带宽消耗器.fpk`
+1. 下载最新版 fpk：**[Releases 页面](https://github.com/apangpeng/fnnet-monitor/releases)**（推荐）或仓库内 `网络监控-<版本>-内置下行带宽消耗器.fpk`
 2. 飞牛 fnOS 应用中心 → 手动安装 → 选择该 fpk
 3. 打开应用，访问 `http://<NAS-IP>:8778`
 
@@ -65,8 +65,8 @@ python fpk_build.py
 本项目**开源免费**，欢迎使用与传播：
 
 - ⭐ **Star**：觉得有用就给仓库点个 Star，让更多人看到
-- 🐛 **反馈**：遇到 bug 或有功能建议，在 [Issues](https://github.com/apangpeng/dp/issues) 提 issue（附上 NAS 型号、fnOS 版本、报错截图即可）
-- 📦 **安装包**：最新版 fpk 在 [Releases 页面](https://github.com/apangpeng/dp/releases) 下载
+- 🐛 **反馈**：遇到 bug 或有功能建议，在 [Issues](https://github.com/apangpeng/fnnet-monitor/issues) 提 issue（附上 NAS 型号、fnOS 版本、报错截图即可）
+- 📦 **安装包**：最新版 fpk 在 [Releases 页面](https://github.com/apangpeng/fnnet-monitor/releases) 下载
 - 🤝 **贡献**：仓库内自带 `fpk_build.py` 打包脚本 + `smoke_test.py` 冒烟测试，改完代码打包自测后即可提 PR
 
 > 使用过程中有任何问题，也欢迎直接在 Issues 里交流。
