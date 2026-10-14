@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>网络监控 · DP</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2029;
+    --panel-2: #222b36;
+    --border: #2c3744;
+    --text: #e6edf3;
+    --muted: #8b98a8;
+    --accent: #4cc2ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --rx: #4cc2ff;
+    --tx: #f778ba;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { overflow-x: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 12px;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* 顶栏 */
+  .topbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+    padding: 12px 14px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 600; }
+  .topbar h1 .brand { color: var(--accent); margin-right: 6px; }
+  .topbar h1 .ver { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 6px; }
+  .stat { display: flex; align-items: baseline; gap: 5px; }
+  .stat .lbl { color: var(--muted); font-size: 11px; }
+  .stat .val { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rx-c { color: var(--rx); }
+  .tx-c { color: var(--tx); }
+  .right { margin-left: auto; color: var(--muted); font-size: 11px; }
+
+  /* 面板 */
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+  }
+  .panel h2 {
+    font-size: 14px; font-weight: 600; margin-bottom: 10px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .panel h2 .dot { width: 3px; height: 14px; background: var(--accent); border-radius: 2px; }
+  .panel h2 .spacer { margin-left: auto; }
+
+  .range-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+  .range-btns button {
+    background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  .range-btns button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  canvas { width: 100%; height: 220px; display: block; }
+
+  /* 表格 */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 600px; }
+  th, td { padding: 6px 8px; text-align: right; font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; }
+  th:first-child, td:first-child { text-align: left; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* 网卡卡片 */
+  .iface-grid {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    margin-bottom: 12px;
+  }
+  .iface-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; position: relative; overflow: hidden;
+    height: 158px; display: flex; flex-direction: column;
+  }
+  .iface-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--green);
+  }
+  .iface-card.down::before { background: var(--red); }
+  .iface-card .name { font-size: 15px; font-weight: 600; flex: 0 0 auto; }
+  .iface-card .name .state {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; font-weight: 500;
+    background: rgba(63,185,80,0.15); color: var(--green);
+  }
+  .iface-card.down .name .state { background: rgba(248,81,73,0.15); color: var(--red); }
+  .iface-card .ips {
+    color: var(--muted); font-size: 12px; margin: 6px 0 10px; word-break: break-all;
+    flex: 1 1 auto; min-height: 0; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .iface-card .rates { display: flex; gap: 18px; flex: 0 0 auto; }
+  .iface-card .rate .lbl { color: var(--muted); font-size: 11px; }
+  .iface-card .rate .v {
+    font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums;
+    white-space: nowrap; min-width: 92px;
+  }
+  .iface-card .meta {
+    margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 11px; display: flex; flex-wrap: wrap; gap: 6px 12px;
+    flex: 0 0 auto;
+  }
+
+  .pill {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    background: var(--panel-2); color: var(--muted); font-size: 11px;
+  }
+  .pill.ok { background: rgba(63,185,80,0.15); color: var(--green); }
+  .pill.warn { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .pill.err { background: rgba(248,81,73,0.15); color: var(--red); }
+
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; }
+  .kv .k { color: var(--muted); }
+  .kv .v { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* 协议统计 / 连接状态分布：多列卡片式（一行多格，代替竖排） */
+  .metric-grid {
+    display: grid; gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  .metric-grid .m {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px;
+  }
+  .metric-grid .m .k { color: var(--muted); font-size: 11px; }
+  .metric-grid .m .v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 1px; }
+
+  /* 正在监听的端口：卡片式（端口号醒目，一卡一个端口） */
+  .port-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .port-card {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px;
+  }
+  .port-head { display: flex; align-items: center; gap: 6px; }
+  .port-num { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .port-addr { color: var(--muted); font-size: 11px; margin-top: 2px; word-break: break-all; }
+  .port-proc { font-size: 12px; margin-top: 2px; word-break: break-all; }
+  .port-desc { color: var(--accent); font-size: 11px; margin-top: 4px; word-break: break-all; }
+  .port-group-title {
+    color: var(--text); font-size: 12px; font-weight: 600;
+    margin: 10px 0 6px; padding-left: 2px;
+    border-left: 3px solid var(--accent); padding-left: 8px;
+  }
+
+  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 12px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+
+  .empty { color: var(--muted); text-align: center; padding: 20px; font-size: 12px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  footer {
+    text-align: center; color: var(--muted); font-size: 11px;
+    padding: 16px 0 8px;
+  }
+  footer .heart { color: var(--tx); }
+
+  /* ===== 下行带宽消耗器（PCDN 业务版块内）===== */
+  .stat-cards {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  .stat-card {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  .stat-card .k { color: var(--muted); font-size: 11px; }
+  .stat-card .v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .stat-card .v.rx { color: var(--rx); }
+  .stat-card .v.warn { color: var(--yellow); }
+  .stat-card .s { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  .bar { background: var(--panel-2); border-radius: 6px; height: 14px; overflow: hidden; margin-top: 8px; }
+  .bar > div { height: 100%; width: 0%; background: var(--green); transition: width .6s; border-radius: 6px; }
+  .bar-pct { color: var(--muted); font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+  .btn {
+    border: 0; border-radius: 6px; padding: 8px 16px; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: #000;
+  }
+  .btn.accent { background: var(--accent); }
+  .btn.red { background: var(--red); color: #fff; }
+  .btn.ghost { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+  .seg button {
+    background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+  }
+  .seg button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  label.lbl { display: block; color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
+  input[type=number], input[type=password] {
+    width: 100%; max-width: 260px; padding: 8px 10px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 14px;
+  }
+  input[type=number]:focus, input[type=password]:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  textarea {
+    width: 100%; height: 200px; padding: 10px 12px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 13px; font-family: Consolas, Menlo, monospace; resize: vertical;
+  }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .msg { font-size: 13px; margin-left: 4px; }
+  .msg.ok { color: var(--green); }
+  .msg.err { color: var(--red); }
+  .panel .desc { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
+
+  pre {
+    background: var(--panel-2); color: #a8e6a3;
+    font-size: 12px; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; max-height: 260px; overflow: auto;
+    white-space: pre-wrap; word-break: break-all;
+    font-family: Consolas, Menlo, monospace;
+  }
+
+  /* 访问口令覆盖层（下行带宽消耗器专用） */
+  .auth-overlay {
+    position: fixed; inset: 0; z-index: 99;
+    background: rgba(15, 20, 25, 0.92);
+    display: none; padding: 16px; overflow: auto;
+  }
+  .auth-box { max-width: 420px; margin: 10vh auto; }
+
+  /* 业务流量排行（卡片式：一行一个业务，字段竖排） */
+  .biz-list { display: flex; flex-direction: column; gap: 8px; }
+  .biz-item {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 16px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  .biz-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .biz-name { font-size: 14px; font-weight: 600; word-break: break-all; }
+  .biz-metric .k { color: var(--muted); font-size: 11px; }
+  .biz-metric .v { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 1px; }
+
+  /* 手机端适配 */
+  @media (max-width: 640px) {
+    body { padding: 8px; font-size: 13px; }
+    .topbar { padding: 10px 12px; gap: 8px 12px; }
+    .topbar h1 { font-size: 15px; width: 100%; }
+    .topbar .right { width: 100%; margin-left: 0; }
+    .stat .val { font-size: 14px; }
+    .panel { padding: 10px 12px; border-radius: 10px; }
+    .panel h2 { font-size: 13px; }
+    .iface-card .rate .v { font-size: 16px; }
+    .stat-card .v { font-size: 20px; }
+    table { font-size: 11px; }
+    th, td { padding: 5px 6px; }
+    canvas { height: 180px; }
+    .kv { font-size: 12px; gap: 3px 10px; }
+    .pcdn-cards { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+    .pcdn-cards > div > div[style*="font-size:28px"] { font-size: 22px !important; }
+    .pcdn-cards > div > div[style*="font-size:22px"] { font-size: 18px !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1><span class="brand">📡</span>网络监控<span class="ver" id="ver">v1.0.1</span></h1>
+  <div class="stat"><span class="lbl">下载</span><span class="val rx-c" id="total-rx">--</span></div>
+  <div class="stat"><span class="lbl">上传</span><span class="val tx-c" id="total-tx">--</span></div>
+  <div class="stat"><span class="lbl">上行占用</span><span class="val" id="up-util">--</span></div>
+  <div class="stat"><span class="lbl">今日上行</span><span class="val tx-c" id="today-tx-top">--</span></div>
+  <div class="stat"><span class="lbl">连接数</span><span class="val" id="tcp-estab">--</span></div>
+  <div class="stat"><span class="lbl">网关</span><span class="val" id="gw">--</span></div>
+  <div class="right">
+    <span id="host" style="margin-right:10px">--</span>
+    <button id="btn-settings" style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:13px;font-weight:600">⚙ 设置</button>
+  </div>
+</div>
+
+<div class="panel">
+  <h2><span class="dot"></span>累计流量
+    <span class="spacer"></span>
+    <span class="pill" id="t-boot">开机 --</span>
+    <span class="pill" id="t-today">今日 --</span>
+    <span class="pill" id="t-month">本月 --</span>
+  </h2>
+  <div class="kv" style="grid-template-columns: repeat(4, 1fr);">
+    <div><div class="k">今日下载</div><div class="v rx-c" id="today-rx">--</div></div>
+    <div><div class="k">今日上传</div><div class="v tx-c" id="today-tx">--</div></div>
+    <div><div class="k">本月下载</div><div class="v rx-c" id="month-rx">--</div></div>
+    <div><div class="k">本月上传</div><div class="v tx-c" id="month-tx">--</div></div>
+  </div>
+</div>
+
+<!-- PCDN 业务面板 -->
+<div class="panel">
+  <h2><span class="dot"></span>PCDN 业务总览（上行带宽占用）</h2>
+  <div style="display:grid;grid-template-columns: repeat(4, 1fr);gap:14px;margin-bottom:12px" class="pcdn-cards">
+    <div>
+      <div class="k" style="color:var(--muted);font-size:11px">当前上行占用率</div>
+      <div style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums" id="pcdn-util">--</div>
+      <div style="color:var(--muted);font-size:11px" id="pcdn-util-sub">未设置套餐带宽</div>
+    </div>
+    <div>
+      <div class="k" style="color:var(--muted);font-size:11px">当前上行速度</div>
+      <div style="font-size:22px;font-weight:600;color:var(--tx);font-variant-numeric:tabular-nums" id="pcdn-tx-mbps">--</div>
+      <div style="color:var(--muted);font-size:11px" id="pcdn-ratio">上下行比 --</div>
+    </div>
+    <div>
+      <div class="k" style="color:var(--muted);font-size:11px">本月已用上行</div>
+      <div style="font-size:22px;font-weight:600;font-variant-numeric:tabular-nums" id="pcdn-month-gb">--</div>
+      <div style="color:var(--muted);font-size:11px" id="pcdn-quota-sub">未设置月配额</div>
+    </div>
+    <div>
+      <div class="k" style="color:var(--muted);font-size:11px">月配额进度</div>
+      <div style="background:var(--panel-2);border-radius:6px;height:14px;margin-top:8px;overflow:hidden;position:relative">
+        <div id="pcdn-quota-bar" style="height:100%;width:0%;background:var(--green);transition:width .6s"></div>
+      </div>
+      <div style="color:var(--muted);font-size:11px;margin-top:4px" id="pcdn-quota-pct">--</div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:6px"><span class="dot"></span>业务流量排行（按上行排序）
+    <span class="spacer"></span>
+    <span class="pill">虚拟机 / 容器 / 网卡</span>
+  </h2>
+  <div id="biz-list" class="biz-list"></div>
+  <p style="color:var(--muted);font-size:11px;margin-top:8px">
+    说明：这里列出虚拟机（vnet）、Docker 容器等虚拟网卡的流量。可在右上角「⚙ 设置」给每张网卡起别名（如"网心云"、"甜糖"）。
+  </p>
+</div>
+
+<!-- 下行带宽消耗器（PCDN 业务子版块，原独立应用 downstream-consumer 并入） -->
+<div class="panel" id="dc-panel">
+  <h2><span class="dot"></span>下行带宽消耗器
+    <span class="spacer"></span>
+    <span class="pill" id="dc-badge">读取中…</span>
+    <span class="pill" id="dc-mode">--</span>
+  </h2>
+  <div class="desc">按设定速度持续消耗下行流量（默认不落盘、不写盘不磨损硬盘），用于按需消耗宽带下行额度。默认源为公开测速文件与开源镜像，<b style="color:var(--yellow)">请确认用途合法，并留意运营商对持续大流量的限速与套餐条款。</b></div>
+  <div class="stat-cards">
+    <div class="stat-card">
+      <div class="k">今日已用（GB）</div>
+      <div class="v rx" id="dc-today">--</div>
+      <div class="s" id="dc-today-bytes">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="k">每日目标（GB）</div>
+      <div class="v" id="dc-target">--</div>
+      <div class="s">写多少跑多少</div>
+    </div>
+    <div class="stat-card">
+      <div class="k">距达成还差</div>
+      <div class="v warn" id="dc-left">--</div>
+      <div class="s" id="dc-left-hint">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="k">进度</div>
+      <div class="bar"><div id="dc-bar"></div></div>
+      <div class="bar-pct" id="dc-pct">--</div>
+    </div>
+  </div>
+  <div class="row">
+    <button class="btn accent" id="btn-dc-start">开始下载</button>
+    <button class="btn red" id="btn-dc-stop">停止下载</button>
+    <button class="btn ghost" id="btn-dc-token">修改访问口令</button>
+    <span class="msg" id="dc-msg"></span>
+  </div>
+
+  <h2 style="margin-top:16px"><span class="dot"></span>参数设置</h2>
+  <label class="lbl">下行限速（MB/s）：写多少跑多少，例如 100 = 每秒 100 兆字节，填 <b style="color:var(--yellow)">0</b> = 不限速</label>
+  <input type="number" id="dc-speed" min="0" max="99999" placeholder="100">
+  <label class="lbl">每日消耗目标（GB）：填 <b style="color:var(--yellow)">0</b> = 不限流量</label>
+  <input type="number" id="dc-daily" min="0" max="9999999" placeholder="5000">
+  <label class="lbl">下载方式：不落盘（固定）</label>
+  <div class="desc" style="margin-top:6px">不落盘：数据直接丢弃，仅统计流量，不写盘不磨损硬盘。本应用固定为不落盘运行。</div>
+  <div class="row">
+    <button class="btn accent" onclick="dcSaveConfig()">保存参数</button>
+    <span class="msg" id="dc-cfg-msg"></span>
+  </div>
+
+  <h2 style="margin-top:16px"><span class="dot"></span>下载源（urls.txt）</h2>
+  <div class="desc">每行一个链接，<b style="color:var(--text)">#</b> 开头为注释。默认源均为公开合法大文件（测速文件 / 开源镜像）。<b style="color:var(--accent)">未手动编辑时，每次下载自动从内置源池随机轮换（2 个测速文件 + 2 个镜像，每天不同）</b>；保存过自己的列表后以你的为准。</div>
+  <textarea id="dc-urls" spellcheck="false"></textarea>
+  <div class="row">
+    <button class="btn accent" onclick="dcSaveUrls()">保存下载源</button>
+    <span class="msg" id="dc-url-msg"></span>
+  </div>
+
+  <h2 style="margin-top:16px"><span class="dot"></span>运行日志</h2>
+  <pre id="dc-log">-</pre>
+</div>
+
+<div class="panel">
+  <h2><span class="dot"></span>网速历史曲线（物理网卡合计）
+    <span class="spacer"></span>
+    <span class="range-btns" id="range-btns">
+      <button data-r="10m">10分</button>
+      <button data-r="1h" class="active">1时</button>
+      <button data-r="6h">6时</button>
+      <button data-r="24h">24时</button>
+      <button data-r="7d">7天</button>
+    </span>
+  </h2>
+  <canvas id="history-chart"></canvas>
+  <div class="legend">
+    <span><i style="background:var(--rx)"></i>下载速度</span>
+    <span><i style="background:var(--tx)"></i>上传速度</span>
+  </div>
+</div>
+
+<div class="iface-grid" id="iface-cards"></div>
+
+<div class="panel">
+  <h2><span class="dot"></span>网卡详细数据</h2>
+  <p style="color:var(--muted);font-size:11px;margin-bottom:8px">
+    下表列出所有网卡（含虚拟网卡）的详细计数。"丢包"和"错误"如果长期为 0 表示网络质量良好；数字持续增长建议检查网线、交换机或光猫。
+  </p>
+  <div class="table-wrap">
+  <table id="iface-table">
+    <thead><tr>
+      <th>网卡</th><th>状态</th>
+      <th>下载速度</th><th>上传速度</th>
+      <th>下载包/秒</th><th>上传包/秒</th>
+      <th>累计下载</th><th>累计上传</th>
+      <th>下载丢包</th><th>上传丢包</th>
+      <th>下载错误</th><th>上传错误</th>
+      <th>FIFO错/帧错</th><th>组播包</th>
+      <th>MTU</th><th>链路</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="panel">
+    <h2><span class="dot"></span>协议整体统计</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:8px">
+      TCP 是大多数应用（网页、文件、远程）用的协议；重传包越多说明网络越不稳定。
+    </p>
+    <div class="metric-grid" id="snmp-kv"></div>
+    <h2 style="margin-top:16px"><span class="dot"></span>连接状态分布</h2>
+    <div class="metric-grid" id="conn-kv"></div>
+  </div>
+  <div class="panel">
+    <h2><span class="dot"></span>正在监听的端口</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:8px">
+      每个监听中的端口代表一个对外开放的服务（如网页、SSH、下载工具）。
+    </p>
+    <div id="ports-list" style="max-height:380px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2><span class="dot"></span>Docker 容器流量</h2>
+  <p style="color:var(--muted);font-size:11px;margin-bottom:8px">
+    每个 Docker 容器自开机以来的累计流量与实时速度，方便找出谁在占用带宽。
+  </p>
+  <div class="table-wrap">
+  <table id="docker-table">
+    <thead><tr>
+      <th>容器名</th><th>镜像</th><th>状态</th>
+      <th>累计下载</th><th>累计上传</th>
+      <th>实时下载</th><th>实时上传</th><th>端口映射</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  </div>
+</div>
+
+<footer>© <span class="heart">●</span> DP · 网络监控</footer>
+
+<!-- 设置弹窗 -->
+<div id="settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;align-items:center;justify-content:center;padding:14px">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto">
+    <h2 style="margin:0 0 12px;font-size:15px">⚙ PCDN 与带宽设置</h2>
+    <div style="margin-bottom:12px">
+      <label style="display:block;color:var(--muted);font-size:12px;margin-bottom:4px">家宽套餐上行带宽（Mbps，填 0 表示不显示占用率）</label>
+      <input id="cfg-upstream" type="number" min="0" step="1" placeholder="例如 30" style="width:100%;padding:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;color:var(--muted);font-size:12px;margin-bottom:4px">家宽套餐下行带宽（Mbps，可选）</label>
+      <input id="cfg-downstream" type="number" min="0" step="1" placeholder="例如 300" style="width:100%;padding:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;color:var(--muted);font-size:12px;margin-bottom:4px">每月上行流量配额（GB，填 0 表示不显示进度条）</label>
+      <input id="cfg-quota" type="number" min="0" step="10" placeholder="例如 2000" style="width:100%;padding:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;color:var(--muted);font-size:12px;margin-bottom:4px">网卡别名（每行一条：网卡名=别名，例如 vnet3=网心云）</label>
+      <textarea id="cfg-aliases" rows="4" placeholder="vnet3=网心云&#10;vnet4=甜糖&#10;docker0=Docker网桥" style="width:100%;padding:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:monospace"></textarea>
+    </div>
+    <div style="margin:14px -18px -18px;padding:12px 18px;border-top:1px solid var(--border);background:rgba(248,81,73,0.05)">
+      <div style="color:var(--red);font-size:12px;margin-bottom:6px">危险操作</div>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:8px">清零今日/本月/累计流量统计（历史趋势曲线保留，实时速率不受影响）。开机累计是内核计数器，需重启 NAS 才能归零。</div>
+      <button id="btn-reset" style="padding:6px 14px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">🗑 清零流量统计</button>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="btn-cancel" style="padding:8px 16px;background:var(--panel-2);color:var(--muted);border:1px solid var(--border);border-radius:6px;cursor:pointer">取消</button>
+      <button id="btn-save" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:600">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 下行带宽消耗器访问口令覆盖层 -->
+<div id="dc-auth-overlay" class="auth-overlay">
+  <div class="panel auth-box">
+    <h2><span class="dot"></span><span id="dc-auth-title">访问口令</span></h2>
+    <div class="desc" id="dc-auth-desc">请输入访问口令以继续操作。</div>
+    <input type="password" id="dc-in-auth" placeholder="访问口令" autocomplete="current-password">
+    <div class="row">
+      <button class="btn accent" id="dc-submit-auth">确定</button>
+      <button class="btn ghost" id="dc-cancel-auth">取消</button>
+      <span class="msg" id="dc-auth-msg"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function fmtBps(v) {
+  if (v == null || isNaN(v)) return "--";
+  const a = Math.abs(v);
+  if (a < 1024) return v.toFixed(0) + " B/s";
+  if (a < 1024*1024) return (v/1024).toFixed(1) + " KB/s";
+  if (a < 1024*1024*1024) return (v/1048576).toFixed(2) + " MB/s";
+  return (v/1073741824).toFixed(3) + " GB/s";
+}
+function fmtBytes(v) {
+  if (v == null || isNaN(v)) return "--";
+  const a = Math.abs(v);
+  if (a < 1024) return v.toFixed(0) + " B";
+  if (a < 1024*1024) return (v/1024).toFixed(1) + " KB";
+  if (a < 1024*1024*1024) return (v/1048576).toFixed(1) + " MB";
+  if (a < 1024*1024*1024*1024) return (v/1073741824).toFixed(2) + " GB";
+  return (v/1099511627776).toFixed(2) + " TB";
+}
+function fmtInt(v) {
+  if (v == null) return "--";
+  v = Number(v);
+  if (v >= 1e9) return (v/1e9).toFixed(2)+"B";
+  if (v >= 1e6) return (v/1e6).toFixed(2)+"M";
+  if (v >= 1e3) return (v/1e3).toFixed(1)+"K";
+  return v.toFixed(0);
+}
+
+// TCP 状态名中文映射
+const TCP_STATE_ZH = {
+  "ESTABLISHED": "已建立",
+  "SYN_SENT": "正在连接",
+  "SYN_RECV": "收到连接请求",
+  "FIN_WAIT1": "断开中1",
+  "FIN_WAIT2": "断开中2",
+  "TIME_WAIT": "等待关闭",
+  "CLOSE": "已关闭",
+  "CLOSE_WAIT": "对方已关闭",
+  "LAST_ACK": "最后确认",
+  "LISTEN": "监听中",
+  "CLOSING": "同时关闭",
+};
+
+async function jget(url) {
+  try { const r = await fetch(url, {cache:"no-store"}); return await r.json(); }
+  catch(e) { return null; }
+}
+
+// ---------- 历史折线图 ----------
+let histRx = [], histTx = [], histRange = "1h";
+
+function drawChart() {
+  const cv = $("history-chart");
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const ctx = cv.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const padL = 56, padR = 10, padT = 10, padB = 22;
+  const cw = w - padL - padR, ch = h - padT - padB;
+  if (histRx.length < 2 && histTx.length < 2) {
+    ctx.fillStyle = "#8b98a8"; ctx.font = "12px sans-serif";
+    ctx.fillText("历史数据采集中…（约 1 分钟后开始显示）", padL + 10, padT + ch/2);
+    return;
+  }
+  const all = histRx.concat(histTx);
+  const maxV = Math.max(1, ...all.map(p => p[1]));
+  const niceMax = niceNum(maxV);
+
+  ctx.strokeStyle = "#2c3744"; ctx.fillStyle = "#8b98a8";
+  ctx.font = "10px sans-serif"; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + ch * (1 - i/4);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+cw, y); ctx.stroke();
+    ctx.textAlign = "right";
+    ctx.fillText(fmtBps(niceMax * i/4), padL - 6, y + 3);
+  }
+  const t0 = Math.min(...histRx.map(p=>p[0]), ...histTx.map(p=>p[0]));
+  const t1 = Math.max(...histRx.map(p=>p[0]), ...histTx.map(p=>p[0]));
+  ctx.textAlign = "center";
+  for (let i = 0; i <= 4; i++) {
+    const x = padL + cw * i/4;
+    const t = new Date(t0 + (t1-t0)*i/4);
+    ctx.fillText(t.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"}), x, h - 6);
+  }
+  function plot(pts, color) {
+    if (pts.length < 2) return;
+    const sx = ts => padL + cw * ((ts - t0) / Math.max(1, (t1 - t0)));
+    const sy = v => padT + ch * (1 - v / niceMax);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = sx(p[0]), y = sy(p[1]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.lineTo(sx(pts[pts.length-1][0]), padT+ch);
+    ctx.lineTo(sx(pts[0][0]), padT+ch);
+    ctx.closePath();
+    ctx.fillStyle = color + "22";
+    ctx.fill();
+  }
+  plot(histRx, "#4cc2ff");
+  plot(histTx, "#f778ba");
+}
+function niceNum(v) {
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / pow;
+  if (n <= 1) return pow;
+  if (n <= 2) return 2*pow;
+  if (n <= 5) return 5*pow;
+  return 10*pow;
+}
+
+// ---------- 渲染 ----------
+function renderNet(d) {
+  if (!d) return;
+  let trx = 0, ttx = 0;
+  for (const it of d.ifaces) {
+    if (it.iface === "lo" || it.virtual) continue;
+    trx += it.rx_rate; ttx += it.tx_rate;
+  }
+  $("total-rx").textContent = fmtBps(trx);
+  $("total-tx").textContent = fmtBps(ttx);
+  $("tcp-estab").textContent = d.snmp && d.snmp.Tcp ? d.snmp.Tcp.CurrEstab : "--";
+  $("gw").textContent = (d.routes && d.routes.gateway) || "--";
+
+  // 物理网卡卡片
+  const cards = $("iface-cards");
+  cards.innerHTML = "";
+  for (const it of d.ifaces) {
+    if (it.virtual) continue;
+    const down = it.operstate !== "up";
+    const speed = it.speed_mbps ? it.speed_mbps + " Mbps" : "—";
+    const stateText = down ? (it.carrier === 0 ? "网线未连" : "未连接") : "已连接";
+    const div = document.createElement("div");
+    div.className = "iface-card" + (down ? " down" : "");
+    div.innerHTML = `
+      <div class="name">${it.iface}<span class="state">${stateText}</span></div>
+      <div class="ips">${(it.ipv4||[]).join("<br>") || "无 IP"}${(it.ipv6||[]).length?("<br><span style='opacity:.7'>" + it.ipv6.join(" · ") + "</span>"):""}</div>
+      <div class="rates">
+        <div class="rate"><div class="lbl">▼ 下载</div><div class="v rx-c">${fmtBps(it.rx_rate)}</div></div>
+        <div class="rate"><div class="lbl">▲ 上传</div><div class="v tx-c">${fmtBps(it.tx_rate)}</div></div>
+      </div>
+      <div class="meta">
+        <span title="最大传输单元">MTU ${it.mtu||"--"}</span>
+        <span title="协商速率">${speed}</span>
+        <span>${it.duplex||""}</span>
+        <span title="MAC 地址">${it.macaddress||""}</span>
+        ${it.driver?`<span title="网卡驱动">${it.driver}</span>`:""}
+      </div>`;
+    cards.appendChild(div);
+  }
+
+  // 全部网卡详细表
+  const tbody = $("iface-table").querySelector("tbody");
+  tbody.innerHTML = "";
+  for (const it of d.ifaces) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${it.iface}${it.virtual?'<span class="pill" style="margin-left:4px">虚拟</span>':''}</td>
+      <td><span class="pill ${it.operstate==='up'?'ok':'err'}">${it.operstate==='up'?'已连接':'未连接'}</span></td>
+      <td class="rx-c">${fmtBps(it.rx_rate)}</td>
+      <td class="tx-c">${fmtBps(it.tx_rate)}</td>
+      <td>${it.rx_pkt_rate.toFixed(0)}</td>
+      <td>${it.tx_pkt_rate.toFixed(0)}</td>
+      <td>${fmtBytes(it.rx_bytes)}</td>
+      <td>${fmtBytes(it.tx_bytes)}</td>
+      <td>${it.rx_drop?`<span class="pill warn">${it.rx_drop}</span>`:0}</td>
+      <td>${it.tx_drop?`<span class="pill warn">${it.tx_drop}</span>`:0}</td>
+      <td>${it.rx_errs?`<span class="pill err">${it.rx_errs}</span>`:0}</td>
+      <td>${it.tx_errs?`<span class="pill err">${it.tx_errs}</span>`:0}</td>
+      <td>${it.rx_fifo}/${it.rx_frame}</td>
+      <td>${it.rx_multicast}</td>
+      <td>${it.mtu||"--"}</td>
+      <td>${it.speed_mbps?it.speed_mbps+"M":""} ${it.duplex||""}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  // SNMP 协议统计（通俗中文）
+  const tcp = d.snmp.Tcp || {}, udp = d.snmp.Udp || {}, icmp = d.snmp.Icmp || {};
+  const snmpItems = [
+    ["当前 TCP 连接数", tcp.CurrEstab],
+    ["主动发起的连接", tcp.ActiveOpens],
+    ["接受的新连接", tcp.PassiveOpens],
+    ["连接失败次数", tcp.AttemptFails],
+    ["连接被重置次数", tcp.EstabResets],
+    ["收到的 TCP 包", fmtInt(tcp.InSegs)],
+    ["发出的 TCP 包", fmtInt(tcp.OutSegs)],
+    ["重传的 TCP 包", fmtInt(tcp.RetransSegs)],
+    ["收到的错误 TCP 包", tcp.InErrs],
+    ["收到的 UDP 包", fmtInt(udp.InDatagrams)],
+    ["无响应端口的 UDP 包", udp.NoPorts],
+    ["收到的 UDP 错误包", udp.InErrors],
+    ["发出的 UDP 包", fmtInt(udp.OutDatagrams)],
+    ["收到的 ICMP 包", fmtInt(icmp.InMsgs)],
+    ["发出的 ICMP 包", fmtInt(icmp.OutMsgs)],
+    ["目标不可达包", icmp.InDestUnreachs],
+  ];
+  $("snmp-kv").innerHTML = snmpItems.map(([k,v]) =>
+    `<div class="m"><div class="k">${k}</div><div class="v">${v==null?"--":v}</div></div>`).join("");
+
+  // 连接状态（中文）
+  const conn = d.conn || {};
+  const items = Object.entries(conn.tcp_states || {}).map(([k,v]) => [TCP_STATE_ZH[k] || k, v]);
+  items.sort((a,b)=>b[1]-a[1]);
+  items.push(["UDP 套接字", conn.udp_total || 0]);
+  $("conn-kv").innerHTML = items.map(([k,v]) =>
+    `<div class="m"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+
+  // Docker
+  const dt = d.docker || {};
+  const dtbody = $("docker-table").querySelector("tbody");
+  if (!dt.available) {
+    dtbody.innerHTML = `<tr><td colspan="8" class="empty">未检测到 Docker 服务</td></tr>`;
+  } else {
+    const list = (dt.containers||[]).slice().sort((a,b)=>(b.net_in+b.net_out)-(a.net_in+a.net_out));
+    if (!list.length) {
+      dtbody.innerHTML = `<tr><td colspan="8" class="empty">没有运行中的容器</td></tr>`;
+    } else {
+      dtbody.innerHTML = list.map(c => `
+        <td>${c.name}</td>
+        <td style="color:var(--muted)">${c.image}</td>
+        <td><span class="pill ${c.state==='running'?'ok':''}">${c.state==='running'?'运行中':c.state}</span></td>
+        <td>${fmtBytes(c.net_in)}</td>
+        <td>${fmtBytes(c.net_out)}</td>
+        <td class="rx-c">${fmtBps(c.rx_rate)}</td>
+        <td class="tx-c">${fmtBps(c.tx_rate)}</td>
+        <td style="color:var(--muted);font-size:11px">${c.ports||""}</td>`).join("");
+    }
+  }
+}
+
+async function refreshNet() { renderNet(await jget("/api/net")); }
+
+const PORT_GROUP_ORDER = ["文件共享", "飞牛系统", "远程与虚拟机", "应用服务", "本应用", "其他"];
+
+async function refreshPorts() {
+  const d = await jget("/api/ports");
+  if (!d) return;
+  const box = $("ports-list");
+  if (!d.listeners || !d.listeners.length) {
+    box.innerHTML = `<div class="empty">没有监听中的端口</div>`;
+    return;
+  }
+  // 按用途分组
+  const groups = {};
+  for (const p of d.listeners) {
+    const g = p.group || "其他";
+    (groups[g] = groups[g] || []).push(p);
+  }
+  const html = [];
+  for (const g of PORT_GROUP_ORDER) {
+    if (!groups[g] || !groups[g].length) continue;
+    html.push(`<div class="port-group"><div class="port-group-title">${g}</div><div class="port-grid">`);
+    html.push(groups[g].map(p => `
+    <div class="port-card">
+      <div class="port-head">
+        <span class="port-num">${p.port}</span>
+        <span class="pill ${p.proto==='tcp'?'ok':''}">${p.proto==='tcp'?'TCP':'UDP'}</span>
+      </div>
+      <div class="port-addr">${p.addr||"*"}</div>
+      <div class="port-proc">${p.process||"—"}${p.pid?(' · PID '+p.pid):""}</div>
+      ${p.desc ? `<div class="port-desc">${p.desc}</div>` : ""}
+    </div>`).join(""));
+    html.push(`</div></div>`);
+  }
+  box.innerHTML = html.join("");
+}
+
+async function refreshTraffic() {
+  const d = await jget("/api/traffic");
+  if (!d) return;
+  $("today-rx").textContent = fmtBytes(d.today.rx);
+  $("today-tx").textContent = fmtBytes(d.today.tx);
+  $("month-rx").textContent = fmtBytes(d.month.rx);
+  $("month-tx").textContent = fmtBytes(d.month.tx);
+  $("t-boot").textContent = `开机 ↓ ${fmtBytes(d.boot.rx)} ↑ ${fmtBytes(d.boot.tx)}`;
+  $("t-today").textContent = `今日 ↓ ${fmtBytes(d.today.rx)} ↑ ${fmtBytes(d.today.tx)}`;
+  $("t-month").textContent = `本月 ↓ ${fmtBytes(d.month.rx)} ↑ ${fmtBytes(d.month.tx)}`;
+  // 顶栏今日上行
+  $("today-tx-top").textContent = fmtBytes(d.today.tx);
+
+  // PCDN 面板
+  const p = d.pcdn || {};
+  if (p.upstream_util_pct != null) {
+    $("up-util").textContent = p.upstream_util_pct.toFixed(0) + "%";
+    $("up-util").style.color = p.upstream_util_pct > 90 ? "var(--red)" :
+                               p.upstream_util_pct > 70 ? "var(--yellow)" : "var(--text)";
+    $("pcdn-util").textContent = p.upstream_util_pct.toFixed(1) + "%";
+    $("pcdn-util").style.color = p.upstream_util_pct > 90 ? "var(--red)" :
+                                 p.upstream_util_pct > 70 ? "var(--yellow)" : "var(--green)";
+    $("pcdn-util-sub").textContent = `套餐 ${p.upstream_mbps_cfg} Mbps，当前 ${d.realtime.tx_mbps.toFixed(1)} Mbps`;
+  } else {
+    $("up-util").textContent = "--";
+    $("pcdn-util").textContent = "--";
+    $("pcdn-util-sub").textContent = "点右上角 ⚙ 设置 填套餐带宽";
+  }
+  $("pcdn-tx-mbps").textContent = d.realtime.tx_mbps.toFixed(2) + " Mbps";
+  $("pcdn-ratio").textContent = p.tx_rx_ratio != null ? `上下行比 ${p.tx_rx_ratio}` : "上下行比 --";
+  $("pcdn-month-gb").textContent = (p.month_tx_gb || 0).toFixed(1) + " GB";
+  if (p.monthly_quota_gb > 0) {
+    $("pcdn-quota-sub").textContent = `月配额 ${p.monthly_quota_gb} GB`;
+    $("pcdn-quota-pct").textContent = `已用 ${p.quota_pct}%`;
+    $("pcdn-quota-bar").style.width = Math.min(100, p.quota_pct) + "%";
+    $("pcdn-quota-bar").style.background = p.quota_pct > 100 ? "var(--red)" :
+                                          p.quota_pct > 80 ? "var(--yellow)" : "var(--green)";
+  } else {
+    $("pcdn-quota-sub").textContent = "点右上角 ⚙ 设置 填月配额";
+    $("pcdn-quota-pct").textContent = "--";
+    $("pcdn-quota-bar").style.width = "0%";
+  }
+}
+
+// 业务流量排行：虚拟网卡 + Docker 容器合并
+async function refreshBizTable() {
+  const d = await jget("/api/net");
+  if (!d) return;
+  const rows = [];
+  // 虚拟网卡（vnet/docker/br 等）
+  for (const it of d.ifaces) {
+    if (it.iface === "lo") continue;
+    if (!it.virtual) continue;
+    rows.push({
+      name: it.label || it.iface,
+      kind: it.label_kind === "vm" ? "虚拟机" : (it.label_kind === "alias" ? "自定义" : "虚拟网卡"),
+      tx_rate: it.tx_rate, rx_rate: it.rx_rate,
+      tx_bytes: it.tx_bytes, rx_bytes: it.rx_bytes,
+    });
+  }
+  // Docker 容器
+  const dt = d.docker || {};
+  if (dt.available) {
+    for (const c of dt.containers) {
+      rows.push({
+        name: c.name, kind: "Docker",
+        tx_rate: c.tx_rate, rx_rate: c.rx_rate,
+        tx_bytes: c.net_out, rx_bytes: c.net_in,
+      });
+    }
+  }
+  // 按累计上行排序
+  rows.sort((a, b) => b.tx_bytes - a.tx_bytes);
+  const totalTx = rows.reduce((s, r) => s + r.tx_bytes, 0) || 1;
+  const box = $("biz-list");
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty">暂无虚拟机或容器流量数据</div>`;
+    return;
+  }
+  box.innerHTML = rows.map(r => {
+    const pct = r.tx_bytes / totalTx * 100;
+    return `
+    <div class="biz-item">
+      <div class="biz-head">
+        <span class="biz-name">${r.name}</span>
+        <span class="pill">${r.kind}</span>
+        <span class="pill ${pct > 50 ? 'warn' : ''}" style="margin-left:auto">占比 ${pct.toFixed(1)}%</span>
+      </div>
+      <div class="biz-metric"><div class="k">实时上行</div><div class="v tx-c">${fmtBps(r.tx_rate)}</div></div>
+      <div class="biz-metric"><div class="k">实时下行</div><div class="v rx-c">${fmtBps(r.rx_rate)}</div></div>
+      <div class="biz-metric"><div class="k">累计上行</div><div class="v">${fmtBytes(r.tx_bytes)}</div></div>
+      <div class="biz-metric"><div class="k">累计下行</div><div class="v">${fmtBytes(r.rx_bytes)}</div></div>
+    </div>`;
+  }).join("");
+}
+
+// 设置弹窗
+let currentCfg = {};
+async function openSettings() {
+  const c = await jget("/api/config");
+  if (!c) return;
+  currentCfg = c;
+  $("cfg-upstream").value = c.upstream_mbps || 0;
+  $("cfg-downstream").value = c.downstream_mbps || 0;
+  $("cfg-quota").value = c.monthly_quota_gb || 0;
+  const aliases = c.aliases || {};
+  $("cfg-aliases").value = Object.entries(aliases).map(([k,v]) => k + "=" + v).join("\n");
+  const m = $("settings-modal");
+  m.style.display = "flex";
+}
+function closeSettings() {
+  $("settings-modal").style.display = "none";
+}
+async function saveSettings() {
+  const patch = {
+    upstream_mbps: parseFloat($("cfg-upstream").value) || 0,
+    downstream_mbps: parseFloat($("cfg-downstream").value) || 0,
+    monthly_quota_gb: parseFloat($("cfg-quota").value) || 0,
+    aliases: {},
+  };
+  // 解析别名
+  for (const line of $("cfg-aliases").value.split("\n")) {
+    const t = line.trim();
+    if (!t || !t.includes("=")) continue;
+    const [k, ...rest] = t.split("=");
+    patch.aliases[k.trim()] = rest.join("=").trim();
+  }
+  const r = await fetch("/api/config", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(patch),
+  });
+  if (r.ok) {
+    closeSettings();
+    refreshTraffic();
+    refreshNet();
+  } else {
+    alert("保存失败");
+  }
+}
+$("btn-settings").addEventListener("click", openSettings);
+$("btn-cancel").addEventListener("click", closeSettings);
+$("btn-save").addEventListener("click", saveSettings);
+$("btn-reset").addEventListener("click", async () => {
+  if (!confirm("确定要清零今日/本月累计流量统计吗？\n（历史趋势曲线和实时速率不受影响，此操作不可恢复）")) return;
+  const r = await fetch("/api/reset_traffic", {method: "POST"});
+  if (r.ok) {
+    alert("已清零，今日/本月累计将从 0 重新开始");
+    closeSettings();
+    refreshTraffic();
+  } else {
+    alert("清零失败");
+  }
+});
+
+async function refreshHistory() {
+  const d = await jget("/api/history?range=" + histRange);
+  if (!d) return;
+  histRx = d.rx || [];
+  histTx = d.tx || [];
+  drawChart();
+}
+
+$("range-btns").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  document.querySelectorAll("#range-btns button").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  histRange = b.dataset.r;
+  refreshHistory();
+});
+
+window.addEventListener("resize", drawChart);
+
+// ---------- 下行带宽消耗器（PCDN 业务版块）----------
+let dcAuthMode = 'auth';
+function dcTok(){ return localStorage.getItem('dc_token') || ''; }
+function dcShowMsg(id, ok, text){
+  const el = $(id);
+  el.textContent = text;
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  setTimeout(function(){ el.textContent = ''; el.className='msg'; }, 4000);
+}
+function dcNeedAuth(){
+  dcAuthMode = 'auth';
+  $('dc-auth-title').textContent = '访问口令';
+  $('dc-auth-desc').textContent = '下行带宽消耗器已启用访问口令保护，请输入口令以继续操作。';
+  $('dc-auth-overlay').style.display = 'block';
+  $('dc-in-auth').value = '';
+}
+async function dcJget(url){
+  const r = await fetch(url, { headers: { 'X-Auth-Token': dcTok() } });
+  if (r.status === 401) { dcNeedAuth(); throw new Error('auth'); }
+  return r.json();
+}
+async function dcJpost(url, data){
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','X-Auth-Token': dcTok()}, body: JSON.stringify(data||{}) });
+  if (r.status === 401) { dcNeedAuth(); throw new Error('auth'); }
+  return r.json();
+}
+function dcBadge(running){
+  const b = $('dc-badge');
+  b.className = 'pill ' + (running ? 'ok' : 'err');
+  b.textContent = running ? '下载中' : '已停止';
+}
+async function dcLoadStatus(){
+  let s;
+  try { s = await dcJget('/api/dc/status'); } catch(e) { return; }
+  dcBadge(s.running);
+  $('dc-today').textContent = s.today_gb;
+  $('dc-target').textContent = s.target_gb > 0 ? s.target_gb : '不限';
+  $('dc-mode').textContent = '不落盘';
+  $('dc-mode').className = 'pill ok';
+  $('dc-today-bytes').textContent = (s.today_bytes / 1073741824).toFixed(3) + ' GB 精确字节';
+  const left = s.target_gb > 0 ? s.target_gb - s.today_gb : 0;
+  $('dc-left').textContent = s.target_gb > 0 ? (left > 0 ? left : 0) : '不限';
+  $('dc-left-hint').textContent = s.target_gb > 0 ? (left > 0 ? '继续下载即可' : '已达成，等待明天') : '未设每日目标，持续下载';
+  const pct = s.target_gb > 0 ? Math.min(100, Math.round(s.today_gb / s.target_gb * 100)) : 0;
+  $('dc-bar').style.width = pct + '%';
+  $('dc-pct').textContent = s.target_gb > 0 ? pct + '%' : '不限';
+  $('btn-dc-start').disabled = s.running;
+  $('btn-dc-stop').disabled = !s.running;
+  $('dc-log').textContent = (s.log || '').split('\n').filter(Boolean).slice(-25).join('\n') || '（暂无日志）';
+}
+async function dcLoadUrls(){
+  try {
+    const r = await fetch('/api/dc/urls', { headers: { 'X-Auth-Token': dcTok() } });
+    const data = await r.json();
+    if (data.ok) $('dc-urls').value = data.urls;
+  } catch(e) {}
+}
+async function dcSaveConfig(){
+  const speed = parseInt($('dc-speed').value, 10);
+  const daily = parseInt($('dc-daily').value, 10);
+  if (isNaN(speed) || speed < 0 || speed > 99999 || isNaN(daily) || daily < 0 || daily > 9999999) {
+    dcShowMsg('dc-cfg-msg', false, '限速与目标需填 0 或正数（0 = 不限）');
+    return;
+  }
+  const r = await dcJpost('/api/dc/config', { speed_mbps: speed, daily_gb: daily });
+  dcShowMsg('dc-cfg-msg', r.ok, r.ok ? '参数已保存，下一轮生效' : (r.error || '保存失败'));
+  dcLoadStatus();
+}
+async function dcSaveUrls(){
+  const r = await dcJpost('/api/dc/urls', { urls: $('dc-urls').value });
+  dcShowMsg('dc-url-msg', r.ok, r.ok ? '下载源已保存' : (r.error || '保存失败'));
+}
+async function dcAct(a){
+  const r = await dcJpost('/api/dc/action', { action: a });
+  dcShowMsg('dc-msg', r.ok, a === 'start' ? '已开始下载' : '已停止');
+  setTimeout(dcLoadStatus, 800);
+}
+function dcChangeToken(){
+  dcAuthMode = 'change';
+  $('dc-auth-title').textContent = '修改访问口令';
+  $('dc-auth-desc').textContent = '输入新的访问口令（至少 8 位），保存后旧口令立即失效。';
+  $('dc-auth-overlay').style.display = 'block';
+  $('dc-in-auth').value = '';
+}
+async function dcSubmitAuth(){
+  const v = $('dc-in-auth').value.trim();
+  if (v.length < 8) { dcShowMsg('dc-auth-msg', false, '口令至少需要 8 位'); return; }
+  if (dcAuthMode === 'setup' || dcAuthMode === 'change'){
+    const r = await dcJpost('/api/dc/setup', { token: v });
+    if (r.ok){
+      localStorage.setItem('dc_token', v);
+      $('dc-auth-overlay').style.display = 'none';
+      if (dcAuthMode === 'change') dcShowMsg('dc-cfg-msg', true, '访问口令已修改');
+      dcStartApp();
+    } else {
+      dcShowMsg('dc-auth-msg', false, r.error || '设置失败');
+    }
+    return;
+  }
+  const r = await fetch('/api/dc/status', { headers: { 'X-Auth-Token': v } });
+  const st = await r.json();
+  if (st && st.auth === true){
+    localStorage.setItem('dc_token', v);
+    $('dc-auth-overlay').style.display = 'none';
+    dcStartApp();
+  } else {
+    dcShowMsg('dc-auth-msg', false, '口令错误，请重试');
+    $('dc-in-auth').value = '';
+  }
+}
+async function dcStartApp(){
+  await dcLoadStatus();
+  dcLoadUrls();
+  const r = await fetch('/api/dc/config', { headers: { 'X-Auth-Token': dcTok() } });
+  const data = await r.json();
+  if (data.ok){
+    $('dc-speed').value = data.speed_mbps;
+    $('dc-daily').value = data.daily_gb;
+  }
+  setInterval(dcLoadStatus, 4000);
+}
+async function dcInit(){
+  if (dcTok()){
+    // 本地已保存口令：先直接验证，成功即进入，失败则清除并走设置/输入流程
+    try {
+      const r = await fetch('/api/dc/status', { headers: { 'X-Auth-Token': dcTok() } });
+      const st = await r.json();
+      if (st && st.auth === true){ dcStartApp(); return; }
+      localStorage.removeItem('dc_token');
+    } catch(e) {}
+  }
+  let st = null;
+  try {
+    st = await fetch('/api/dc/status').then(function(r){ return r.json(); });
+  } catch(e) {}
+  if (st && st.auth === true){ dcStartApp(); return; }
+  if (st && st.setup === true){
+    dcAuthMode = 'setup';
+    $('dc-auth-title').textContent = '设置访问口令';
+    $('dc-auth-desc').textContent = '首次使用下行带宽消耗器，请设置一个至少 8 位的访问口令。设置后所有操作都需要该口令。';
+    $('dc-auth-overlay').style.display = 'block';
+    $('dc-in-auth').value = '';
+    return;
+  }
+  dcNeedAuth();
+}
+$('btn-dc-start').addEventListener('click', function(){ dcAct('start'); });
+$('btn-dc-stop').addEventListener('click', function(){ dcAct('stop'); });
+$('btn-dc-token').addEventListener('click', dcChangeToken);
+$('dc-submit-auth').addEventListener('click', dcSubmitAuth);
+$('dc-cancel-auth').addEventListener('click', function(){ $('dc-auth-overlay').style.display = 'none'; });
+
+refreshNet(); refreshPorts(); refreshTraffic(); refreshHistory(); refreshBizTable(); dcInit();
+setInterval(refreshNet, 2000);
+setInterval(refreshPorts, 5000);
+setInterval(refreshTraffic, 5000);
+setInterval(refreshHistory, 5000);
+setInterval(refreshBizTable, 5000);
+
+jget("/api/info").then(d => { if (d) { $("ver").textContent = "v"+d.version; $("host").textContent = d.host; } });
+</script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+#!/bin/bash
+# netmon 配置变更前处理
+exit 0

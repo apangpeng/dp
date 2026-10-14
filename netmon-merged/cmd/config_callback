@@ -1,0 +1,31 @@
+#!/bin/bash
+# ============================================================
+# netmon 配置变更后处理
+# 只更新 interval / retention_days 两个字段，保留用户在网页上
+# 设置的 upstream_mbps / monthly_quota_gb / aliases 等。
+# ============================================================
+mkdir -p "${TRIM_PKGVAR}" 2>/dev/null || true
+INTERVAL="${wizard_interval:-2}"
+RETENTION="${wizard_retention:-7}"
+CONFIG="${TRIM_PKGVAR}/config.json"
+
+python3 - "$CONFIG" "$INTERVAL" "$RETENTION" <<'PYEOF'
+import json, sys, os
+path, interval, retention = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+cfg = {}
+if os.path.isfile(path):
+    try:
+        with open(path, "r", errors="ignore") as f:
+            cfg = json.load(f)
+        if not isinstance(cfg, dict):
+            cfg = {}
+    except Exception:
+        cfg = {}
+cfg["interval"] = interval
+cfg["retention_days"] = retention
+with open(path, "w") as f:
+    json.dump(cfg, f, ensure_ascii=False, indent=2)
+PYEOF
+
+echo "配置已更新：实时采样 ${INTERVAL}s，历史保留 ${RETENTION} 天（其他设置已保留，重启后生效）"
+exit 0
