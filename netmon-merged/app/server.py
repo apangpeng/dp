@@ -45,7 +45,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "1.3.13"
+VERSION = "1.3.14"
 
 # 虚拟网卡前缀（在"物理网卡"视图里默认过滤，但在"全部网卡"里仍展示）
 VIRT_PREFIXES = ("docker", "veth", "br-", "virbr", "vnet", "tun", "tap",
@@ -1113,6 +1113,12 @@ class Handler(BaseHTTPRequestHandler):
                 daily = dc_num(data.get('daily_gb'), 0)
                 if not (0 <= speed <= 99999) or not (0 <= daily <= 9999999):
                     raise ValueError('数值超出允许范围（0=不限）')
+                if speed > 0 and daily > 0:
+                    # 理论最大日消耗 = 限速 × 86400 秒；留 5% 余量（TCP 开销/源站波动）
+                    daily_max = int(speed * 86400 / 1024 * 0.95)
+                    if daily > daily_max:
+                        need_speed = int(daily * 1024 / (86400 * 0.95)) + 1
+                        raise ValueError('按限速 %d MB/s 连续下载 24 小时最多约 %d GB，目标 %d GB 当天无法完成：请把每日目标调低到 %d GB 以内，或把下行限速提高到 %d MB/s 以上（目标填 0 可不限量）' % (speed, daily_max, daily, daily_max, need_speed))
                 mode = 'none'  # 下载方式固定为不落盘
                 with open(dc_paths(data_dir)["config"], 'w', encoding='utf-8') as f:
                     f.write('SPEED_MBPS=%d\nDAILY_GB=%d\nDOWNLOAD_MODE=%s\n' % (speed, daily, mode))
