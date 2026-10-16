@@ -51,7 +51,7 @@ def req(method, path, body=None, token=None, expect401=False):
 
 
 def main():
-    server_script = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\Administrator\Downloads\new-chat-4\netmon-merged\app\server.py"
+    server_script = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\Administrator\Downloads\new-chat-4\new-chat-4\netmon-merged\app\server.py"
     if os.path.isdir(DATA):
         shutil.rmtree(DATA, ignore_errors=True)
     server = subprocess.Popen(
@@ -74,7 +74,7 @@ def main():
             print(server.stdout.read(2000))
             return 1
 
-        check("version", st == 200 and j.get("version") == "1.3.13", str(j.get("version")))
+        check("version", st == 200 and j.get("version") == "1.3.14", str(j.get("version")))
 
         # DC: 未设口令 → setup 流程
         st, j = req("GET", "/api/dc/status")
@@ -110,6 +110,14 @@ def main():
         # DC: 非法参数被拒绝（超上限）
         st, j = req("POST", "/api/dc/config", {"speed_mbps": 100000, "daily_gb": 10}, token=TOKEN)
         check("dc config reject bad", st == 200 and j.get("ok") is False, str(j))
+
+        # DC: 目标当天不可达被拒绝（10 MB/s × 24h ≈ 843 GB < 1000 GB）
+        st, j = req("POST", "/api/dc/config", {"speed_mbps": 10, "daily_gb": 1000}, token=TOKEN)
+        check("dc config reject unreachable target", st == 200 and j.get("ok") is False and "无法完成" in j.get("error", ""), str(j))
+
+        # DC: 可达组合被接受（10 MB/s × 24h 足够 800 GB）
+        st, j = req("POST", "/api/dc/config", {"speed_mbps": 10, "daily_gb": 800}, token=TOKEN)
+        check("dc config accept reachable target", st == 200 and j.get("ok") is True, str(j))
 
         # DC: 恢复低速配置，避免后续启停测试以不限速真实拉满带宽
         st, j = req("POST", "/api/dc/config", {"speed_mbps": 5, "daily_gb": 10}, token=TOKEN)
