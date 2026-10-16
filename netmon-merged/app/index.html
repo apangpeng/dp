@@ -1042,6 +1042,14 @@ async function dcSaveConfig(){
     dcShowMsg('dc-cfg-msg', false, '限速与目标需填 0 或正数（0 = 不限）');
     return;
   }
+  if (speed > 0 && daily > 0){
+    const dailyMax = Math.floor(speed * 86400 / 1024 * 0.95); // 留 5% 余量
+    if (daily > dailyMax){
+      const needSpeed = Math.ceil(daily * 1024 / (86400 * 0.95));
+      dcShowMsg('dc-cfg-msg', false, `按限速 ${speed} MB/s 连续下载 24 小时最多约 ${dailyMax} GB，目标 ${daily} GB 当天无法完成：请把每日目标调低到 ${dailyMax} GB 以内，或把下行限速提高到 ${needSpeed} MB/s 以上（目标填 0 可不限量）`);
+      return;
+    }
+  }
   const r = await dcJpost('/api/dc/config', { speed_mbps: speed, daily_gb: daily });
   dcShowMsg('dc-cfg-msg', r.ok, r.ok ? '参数已保存，下一轮生效' : (r.error || '保存失败'));
   dcLoadStatus();
